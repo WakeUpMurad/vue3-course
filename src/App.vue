@@ -1,16 +1,42 @@
 <template>
   <div class="app">
     <h1>Страница с постами</h1>
-    <my-button
-        @click="showDialog"
-
-    >
-      Создать пост
-    </my-button>
+    <my-input
+      v-model="searchQuery"
+      placeholder="Поиск...."
+    />
+    <div class="app__btns">
+      <my-button
+          @click="showDialog"
+      >
+        Создать пост
+      </my-button>
+      <my-select
+          v-model="selectedSort"
+          :options="sortOptions"
+      />
+    </div>
     <my-dialog v-model:show="dialogVisible">
       <post-form @create="createPost"/>
     </my-dialog>
-    <post-list :posts="posts" @remove="removePost"/>
+    <post-list
+        :posts="sortedAndSearchesPosts"
+        @remove="removePost"
+        v-if="!isPostsLoading"
+    />
+    <div v-else>Loading...</div>
+    <div class="page__wrapper">
+      <div v-for="pageNumber in totalPage"
+           :key="pageNumber"
+           class="page"
+           :class="{
+             'current-page': page === pageNumber,
+           }"
+           @click="changePage(pageNumber)"
+      >
+        {{ pageNumber }}
+      </div>
+    </div>
   </div>
 </template>
 
@@ -19,20 +45,32 @@ import PostForm from "@/components/PostForm.vue";
 import PostList from "@/components/PostList.vue";
 import MyDialog from "@/components/UI/MyDialog.vue";
 import MyButton from "@/components/UI/MyButton.vue";
+import MyInput from "@/components/UI/MyInput.vue";
+import axios from "axios";
+import MySelect from "@/components/UI/MySelect.vue";
 export default {
   components: {
+    MySelect,
+    MyInput,
     MyButton,
     MyDialog,
-    PostForm, PostList
+    PostForm,
+    PostList
   },
   data () {
     return {
-      posts: [
-        {id: 1, title: 'JavaScript', body: 'Описание поста'},
-        {id: 2, title: 'JavaScript 2', body: 'Описание поста'},
-        {id: 3, title: 'JavaScript 3', body: 'Описание поста'},
-      ],
+      posts: [],
       dialogVisible: false,
+      isPostsLoading: false,
+      selectedSort: '',
+      searchQuery: '',
+      page: 1,
+      limit: 10,
+      totalPage: 0,
+      sortOptions: [
+        {value: 'title', name: 'По названию'},
+        {value: 'body', name: 'По содержимому'},
+      ]
     }
   },
   methods: {
@@ -45,6 +83,42 @@ export default {
     },
     showDialog() {
       this.dialogVisible = true;
+    },
+    changePage(pageNumber) {
+      this.page = pageNumber;
+    },
+    async fetchPosts() {
+      try {
+        this.isPostsLoading = true;
+        const response = await axios.get('https://jsonplaceholder.typicode.com/posts', {
+          params: {
+            _page: this.page,
+            _limit: this.limit,
+          }
+        })
+        this.totalPage = Math.ceil(response.headers['x-total-count'] / this.limit);
+        this.posts = response.data;
+      } catch (e) {
+        alert('Ошибка')
+      } finally {
+        this.isPostsLoading = false;
+      }
+    }
+  },
+  mounted() {
+    this.fetchPosts();
+  },
+  computed: {
+    sortedPosts() {
+      return [...this.posts].sort((post1, post2) => post1[this.selectedSort]?.localeCompare(post2[this.selectedSort]))
+    },
+    sortedAndSearchesPosts() {
+      return this.sortedPosts.filter(post => post.title.toLowerCase().includes(this.searchQuery.toLowerCase()))
+    }
+  },
+  watch: {
+    page() {
+      this.fetchPosts();
     }
   }
 }
@@ -59,9 +133,21 @@ export default {
 .app {
   padding: 20px;
 }
-form {
+.app__btns {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  margin: 15px 0;
+}
+.page__wrapper {
+  display: flex;
+  margin-top: 15px;
+}
+.page {
+  border: 1px solid black;
+  padding: 10px;
+}
+.current-page {
+  border: 2px solid teal;
 }
 
 </style>
